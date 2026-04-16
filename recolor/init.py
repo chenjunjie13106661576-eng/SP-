@@ -428,9 +428,15 @@ def normalize_folder_name(name):
 
 def classify_export_folder(name):
     normalized = normalize_folder_name(name)
-    if normalized in ('\u5149\u7167\u4fe1\u606f', 'lighting', 'lightinginfo', 'lightinfo'):
+    if normalized in (
+        '\u5149\u7167\u4fe1\u606f', 'lighting', 'lightinginfo', 'lightinfo',
+        'basebycj\u5149\u7167'
+    ):
         return 'lighting'
-    if normalized in ('id', 'id\u901a\u9053', 'idchannel', 'paletteindex', '\u8c03\u8272id', '\u8c03\u8272\u901a\u9053'):
+    if normalized in (
+        'id', 'id\u901a\u9053', 'idchannel', 'paletteindex', '\u8c03\u8272id', '\u8c03\u8272\u901a\u9053',
+        'basebycjid'
+    ):
         return 'palette'
     return None
 
