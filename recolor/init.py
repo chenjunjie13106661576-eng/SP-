@@ -601,6 +601,61 @@ def export_special_maps():
         )
 
 
+def export_single_special_map(target_kind):
+    data = get_active_stack_top_groups()
+    if data is None:
+        return
+    stack, groups = data
+    if not groups:
+        substance_painter.logging.warning('\u5f53\u524d Texture Set \u4e0b\u6ca1\u6709\u627e\u5230\u9876\u5c42\u6587\u4ef6\u5939\u3002')
+        return
+
+    material_name = get_material_name(stack)
+    all_nodes = []
+    original_visibility = {}
+    target_node = None
+    target_label = '\u5149\u7167\u4fe1\u606f' if target_kind == 'lighting' else 'ID\u901a\u9053'
+    for group in groups:
+        node = substance_painter.layerstack.Node(group['uid'])
+        all_nodes.append((group['name'], node))
+        original_visibility[get_node_uid(node)] = node.is_visible()
+        if classify_export_folder(group['name']) == target_kind:
+            target_node = node
+
+    if target_node is None:
+        substance_painter.logging.warning(
+            '\u6ca1\u6709\u627e\u5230\u9876\u5c42\u6587\u4ef6\u5939\u201c{0}\u201d\u3002'.format(target_label)
+        )
+        return
+
+    try:
+        target_uid = get_node_uid(target_node)
+        for _, node in all_nodes:
+            node.set_visible(get_node_uid(node) == target_uid)
+        QtWidgets.QApplication.processEvents()
+        export_name = build_special_export_basename(material_name, target_kind)
+        export_basecolor_with_name(stack, export_name)
+        substance_painter.logging.info(
+            '\u5df2\u5bfc\u51fa{0}\uff1a{1}'.format(target_label, export_name)
+        )
+    except Exception as exc:
+        substance_painter.logging.warning(
+            '\u5bfc\u51fa{0}\u5931\u8d25\uff1a'.format(target_label) + str(exc)
+        )
+    finally:
+        for _, node in all_nodes:
+            node.set_visible(original_visibility.get(get_node_uid(node), True))
+        QtWidgets.QApplication.processEvents()
+
+
+def export_lighting_map():
+    export_single_special_map('lighting')
+
+
+def export_palette_index_map():
+    export_single_special_map('palette')
+
+
 def get_active_stack_top_groups():
     stack = get_active_stack()
     if stack is None:
@@ -750,9 +805,13 @@ class RecolorToolWidget(QtWidgets.QWidget):
         export_button.clicked.connect(export_current_basecolor)
         layout.addWidget(export_button)
 
-        export_groups_button = QtWidgets.QPushButton('\u6309\u6587\u4ef6\u5939\u5bfc\u51fa\u5149\u7167\u4fe1\u606f\u548c ID \u56fe')
-        export_groups_button.clicked.connect(export_special_maps)
-        layout.addWidget(export_groups_button)
+        export_lighting_button = QtWidgets.QPushButton('\u5bfc\u51fa\u5149\u7167\u4fe1\u606f')
+        export_lighting_button.clicked.connect(export_lighting_map)
+        layout.addWidget(export_lighting_button)
+
+        export_palette_button = QtWidgets.QPushButton('\u5bfc\u51fa ID \u56fe')
+        export_palette_button.clicked.connect(export_palette_index_map)
+        layout.addWidget(export_palette_button)
 
         hint = QtWidgets.QLabel(
             '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
