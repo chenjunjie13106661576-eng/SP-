@@ -21,6 +21,7 @@ tool_dock = None
 color_hex_label = None
 color_swatch_label = None
 export_dir_line_edit = None
+project_dir_line_edit = None
 manual_color_line_edit = None
 quick_color_buttons = []
 quick_color_presets = []
@@ -29,6 +30,7 @@ current_color_rgb = (30, 144, 255)
 active_color_dialog = None
 active_color_dialog_filter = None
 last_export_dir = ''
+last_project_dir = ''
 
 
 def default_quick_colors():
@@ -92,12 +94,20 @@ def save_quick_colors():
 
 def load_plugin_settings():
     global last_export_dir
+    global last_project_dir
     data = load_json(SETTINGS_FILE, {})
     last_export_dir = str(data.get('last_export_dir', '') or '')
+    last_project_dir = str(data.get('last_project_dir', '') or '')
 
 
 def save_plugin_settings():
-    save_json(SETTINGS_FILE, {'last_export_dir': last_export_dir})
+    save_json(
+        SETTINGS_FILE,
+        {
+            'last_export_dir': last_export_dir,
+            'last_project_dir': last_project_dir,
+        }
+    )
 
 
 def get_node_uid(node):
@@ -432,6 +442,12 @@ def build_special_export_basename(material_name, folder_kind):
     return base_name
 
 
+def build_material_folder_name(material_name):
+    if material_name.startswith('ALP_Mat_'):
+        return sanitize_filename(material_name[len('ALP_Mat_'):])
+    return sanitize_filename(material_name)
+
+
 def get_export_directory():
     global last_export_dir
     project_path = substance_painter.project.file_path()
@@ -448,6 +464,26 @@ def get_export_directory():
     export_dir = os.path.dirname(project_path)
     os.makedirs(export_dir, exist_ok=True)
     return export_dir
+
+
+def get_project_output_root_directory():
+    global last_project_dir
+    if project_dir_line_edit is not None:
+        custom_dir = project_dir_line_edit.text().strip()
+        if custom_dir:
+            os.makedirs(custom_dir, exist_ok=True)
+            if custom_dir != last_project_dir:
+                last_project_dir = custom_dir
+                save_plugin_settings()
+            return custom_dir
+
+    project_path = substance_painter.project.file_path()
+    if project_path:
+        output_dir = os.path.dirname(project_path)
+        os.makedirs(output_dir, exist_ok=True)
+        return output_dir
+
+    raise RuntimeError('\u8bf7\u5148\u6307\u5b9a\u5de5\u7a0b\u8f93\u51fa\u76ee\u5f55\uff0c\u6216\u8005\u5148\u4fdd\u5b58\u5f53\u524d .spp \u5de5\u7a0b\u3002')
 
 
 def browse_export_directory():
@@ -471,11 +507,40 @@ def browse_export_directory():
         save_plugin_settings()
 
 
+def browse_project_directory():
+    global last_project_dir
+    if project_dir_line_edit is None:
+        return
+    current_dir = project_dir_line_edit.text().strip()
+    if not current_dir:
+        if last_project_dir:
+            current_dir = last_project_dir
+        else:
+            project_path = substance_painter.project.file_path()
+            if project_path:
+                current_dir = os.path.dirname(project_path)
+    selected_dir = QtWidgets.QFileDialog.getExistingDirectory(
+        None, '\u9009\u62e9\u5de5\u7a0b\u8f93\u51fa\u76ee\u5f55', current_dir
+    )
+    if selected_dir:
+        project_dir_line_edit.setText(selected_dir)
+        last_project_dir = selected_dir
+        save_plugin_settings()
+
+
 def persist_export_directory():
     global last_export_dir
     if export_dir_line_edit is None:
         return
     last_export_dir = export_dir_line_edit.text().strip()
+    save_plugin_settings()
+
+
+def persist_project_directory():
+    global last_project_dir
+    if project_dir_line_edit is None:
+        return
+    last_project_dir = project_dir_line_edit.text().strip()
     save_plugin_settings()
 
 
@@ -656,6 +721,29 @@ def export_palette_index_map():
     export_single_special_map('palette')
 
 
+def save_project_to_material_folder():
+    stack = get_active_stack()
+    if stack is None:
+        return
+
+    material_name = get_material_name(stack)
+    folder_name = build_material_folder_name(material_name)
+
+    try:
+        root_dir = get_project_output_root_directory()
+        target_dir = os.path.join(root_dir, folder_name)
+        os.makedirs(target_dir, exist_ok=True)
+        target_path = os.path.join(target_dir, folder_name + '.spp')
+        substance_painter.project.save_as(target_path)
+        substance_painter.logging.info(
+            '\u5df2\u521b\u5efa\u6587\u4ef6\u5939\u5e76\u4fdd\u5b58 SPP\uff1a' + target_path
+        )
+    except Exception as exc:
+        substance_painter.logging.warning(
+            '\u521b\u5efa\u6587\u4ef6\u5939\u5e76\u4fdd\u5b58 SPP \u5931\u8d25\uff1a' + str(exc)
+        )
+
+
 def get_active_stack_top_groups():
     stack = get_active_stack()
     if stack is None:
@@ -801,6 +889,31 @@ class RecolorToolWidget(QtWidgets.QWidget):
         export_dir_layout.addWidget(browse_button)
         layout.addLayout(export_dir_layout)
 
+        project_dir_title = QtWidgets.QLabel('\u5de5\u7a0b\u8f93\u51fa\u76ee\u5f55')
+        project_dir_title.setStyleSheet('font-weight: 600;')
+        layout.addWidget(project_dir_title)
+
+        project_dir_layout = QtWidgets.QHBoxLayout()
+        global project_dir_line_edit
+        project_dir_line_edit = QtWidgets.QLineEdit()
+        project_dir_line_edit.setPlaceholderText(
+            '\u7559\u7a7a\u5219\u4f7f\u7528\u5f53\u524d .spp \u6240\u5728\u76ee\u5f55'
+        )
+        project_dir_line_edit.setText(last_project_dir)
+        project_dir_line_edit.editingFinished.connect(persist_project_directory)
+        project_dir_layout.addWidget(project_dir_line_edit, 1)
+
+        project_browse_button = QtWidgets.QPushButton('\u6d4f\u89c8')
+        project_browse_button.clicked.connect(browse_project_directory)
+        project_dir_layout.addWidget(project_browse_button)
+        layout.addLayout(project_dir_layout)
+
+        save_project_button = QtWidgets.QPushButton(
+            '\u6309\u6750\u8d28\u540d\u5efa\u6587\u4ef6\u5939\u5e76\u4fdd\u5b58 SPP'
+        )
+        save_project_button.clicked.connect(save_project_to_material_folder)
+        layout.addWidget(save_project_button)
+
         export_button = QtWidgets.QPushButton('\u5bfc\u51fa\u5f53\u524d\u53ef\u89c1 BaseColor')
         export_button.clicked.connect(export_current_basecolor)
         layout.addWidget(export_button)
@@ -815,6 +928,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
 
         hint = QtWidgets.QLabel(
             '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
+            '\u5de5\u7a0b\u4fdd\u5b58\u6309\u94ae\u4f1a\u521b\u5efa\u201c\u7c7b\u578b_\u540d\u79f0\u201d\u6587\u4ef6\u5939\uff0c\u5e76\u4fdd\u5b58\u4e3a\u540c\u540d .spp\n'
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex'
@@ -853,6 +967,7 @@ def close_plugin():
     global color_hex_label
     global color_swatch_label
     global export_dir_line_edit
+    global project_dir_line_edit
     global manual_color_line_edit
     global quick_color_buttons
 
@@ -864,5 +979,6 @@ def close_plugin():
     color_hex_label = None
     color_swatch_label = None
     export_dir_line_edit = None
+    project_dir_line_edit = None
     manual_color_line_edit = None
     quick_color_buttons = []
