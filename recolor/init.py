@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 
 import substance_painter.export
 import substance_painter.js
@@ -573,7 +574,28 @@ def build_basecolor_export_config(stack, export_basename, export_dir):
     }
 
 
-def export_basecolor_with_name(stack, export_basename):
+def copy_exported_files_to_project_folder(exported_files):
+    project_path = substance_painter.project.file_path()
+    if not project_path:
+        return []
+
+    target_dir = os.path.dirname(project_path)
+    copied_files = []
+    for source_path in exported_files:
+        if not source_path:
+            continue
+        source_dir = os.path.dirname(source_path)
+        if os.path.normcase(os.path.normpath(source_dir)) == os.path.normcase(os.path.normpath(target_dir)):
+            continue
+        if not os.path.exists(source_path):
+            continue
+        target_path = os.path.join(target_dir, os.path.basename(source_path))
+        shutil.copy2(source_path, target_path)
+        copied_files.append(target_path)
+    return copied_files
+
+
+def export_basecolor_with_name(stack, export_basename, mirror_to_project_folder=False):
     export_dir = get_export_directory()
     export_basename = sanitize_filename(export_basename)
     config = build_basecolor_export_config(stack, export_basename, export_dir)
@@ -589,6 +611,10 @@ def export_basecolor_with_name(stack, export_basename):
     if not exported_files:
         raise RuntimeError('\u5bfc\u51fa\u5b8c\u6210\uff0c\u4f46\u6ca1\u6709\u751f\u6210\u4efb\u4f55\u6587\u4ef6\u3002')
     substance_painter.logging.info('\u5df2\u5bfc\u51fa\uff1a' + exported_files[0])
+    if mirror_to_project_folder:
+        copied_files = copy_exported_files_to_project_folder(exported_files)
+        if copied_files:
+            substance_painter.logging.info('\u5df2\u540c\u6b65\u590d\u5236\u5230 SPP \u6587\u4ef6\u5939\uff1a' + copied_files[0])
     return exported_files
 
 
@@ -647,7 +673,7 @@ def export_special_maps():
                 node.set_visible(get_node_uid(node) == target_uid)
             QtWidgets.QApplication.processEvents()
             export_name = build_special_export_basename(material_name, group['kind'])
-            export_basecolor_with_name(stack, export_name)
+            export_basecolor_with_name(stack, export_name, mirror_to_project_folder=True)
             exported_kinds.add(group['kind'])
     except Exception as exc:
         substance_painter.logging.warning('\u6309\u6587\u4ef6\u5939\u5bfc\u51fa\u5931\u8d25\uff1a' + str(exc))
@@ -705,7 +731,7 @@ def export_single_special_map(target_kind):
             node.set_visible(get_node_uid(node) == target_uid)
         QtWidgets.QApplication.processEvents()
         export_name = build_special_export_basename(material_name, target_kind)
-        export_basecolor_with_name(stack, export_name)
+        export_basecolor_with_name(stack, export_name, mirror_to_project_folder=True)
         substance_painter.logging.info(
             '\u5df2\u5bfc\u51fa{0}\uff1a{1}'.format(target_label, export_name)
         )
@@ -936,6 +962,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
             '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
             '\u5de5\u7a0b\u4fdd\u5b58\u6309\u94ae\u4f1a\u521b\u5efa\u201c\u7c7b\u578b_\u540d\u79f0\u201d\u6587\u4ef6\u5939\uff0c\u5e76\u4fdd\u5b58\u4e3a\u540c\u540d .spp\n'
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
+            '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex'
         )
