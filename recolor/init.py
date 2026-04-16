@@ -455,6 +455,34 @@ def build_material_folder_name(material_name):
     return sanitize_filename(material_name)
 
 
+def build_material_project_path(material_name):
+    folder_name = build_material_folder_name(material_name)
+    root_dir = get_project_output_root_directory()
+    target_dir = os.path.join(root_dir, folder_name)
+    os.makedirs(target_dir, exist_ok=True)
+    return os.path.join(target_dir, folder_name + '.spp')
+
+
+def ensure_project_saved_before_export(material_name=None):
+    if material_name is None:
+        stack = get_active_stack()
+        if stack is None:
+            raise RuntimeError('\u5f53\u524d\u6ca1\u6709\u53ef\u7528\u7684 Texture Set\u3002')
+        material_name = get_material_name(stack)
+
+    project_path = substance_painter.project.file_path()
+    if project_path:
+        if substance_painter.project.needs_saving():
+            substance_painter.project.save()
+            substance_painter.logging.info('\u5df2\u5728\u5bfc\u51fa\u524d\u81ea\u52a8\u4fdd\u5b58\u5f53\u524d SPP\u3002')
+        return project_path
+
+    target_path = build_material_project_path(material_name)
+    substance_painter.project.save_as(target_path)
+    substance_painter.logging.info('\u5bfc\u51fa\u524d\u81ea\u52a8\u4fdd\u5b58 SPP\uff1a' + target_path)
+    return target_path
+
+
 def get_export_directory():
     global last_export_dir
     project_path = substance_painter.project.file_path()
@@ -625,6 +653,7 @@ def export_current_basecolor():
     material_name = get_material_name(stack)
     export_basename = build_export_basename(material_name)
     try:
+        ensure_project_saved_before_export(material_name)
         export_basecolor_with_name(stack, export_basename)
     except Exception as exc:
         substance_painter.logging.warning('\u5bfc\u51fa\u5f53\u524d BaseColor \u5931\u8d25\uff1a' + str(exc))
@@ -640,6 +669,11 @@ def export_special_maps():
         return
 
     material_name = get_material_name(stack)
+    try:
+        ensure_project_saved_before_export(material_name)
+    except Exception as exc:
+        substance_painter.logging.warning('\u5bfc\u51fa\u524d\u81ea\u52a8\u4fdd\u5b58\u5931\u8d25\uff1a' + str(exc))
+        return
     all_nodes = []
     original_visibility = {}
     for group in groups:
@@ -708,6 +742,11 @@ def export_single_special_map(target_kind):
         return
 
     material_name = get_material_name(stack)
+    try:
+        ensure_project_saved_before_export(material_name)
+    except Exception as exc:
+        substance_painter.logging.warning('\u5bfc\u51fa\u524d\u81ea\u52a8\u4fdd\u5b58\u5931\u8d25\uff1a' + str(exc))
+        return
     all_nodes = []
     original_visibility = {}
     target_node = None
@@ -759,13 +798,9 @@ def save_project_to_material_folder():
         return
 
     material_name = get_material_name(stack)
-    folder_name = build_material_folder_name(material_name)
 
     try:
-        root_dir = get_project_output_root_directory()
-        target_dir = os.path.join(root_dir, folder_name)
-        os.makedirs(target_dir, exist_ok=True)
-        target_path = os.path.join(target_dir, folder_name + '.spp')
+        target_path = build_material_project_path(material_name)
         substance_painter.project.save_as(target_path)
         substance_painter.logging.info(
             '\u5df2\u521b\u5efa\u6587\u4ef6\u5939\u5e76\u4fdd\u5b58 SPP\uff1a' + target_path
@@ -961,6 +996,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
         hint = QtWidgets.QLabel(
             '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
             '\u5de5\u7a0b\u4fdd\u5b58\u6309\u94ae\u4f1a\u521b\u5efa\u201c\u7c7b\u578b_\u540d\u79f0\u201d\u6587\u4ef6\u5939\uff0c\u5e76\u4fdd\u5b58\u4e3a\u540c\u540d .spp\n'
+            '\u5f53\u5de5\u7a0b\u672a\u4fdd\u5b58\u65f6\uff0c\u5bfc\u51fa\u524d\u4f1a\u5148\u81ea\u52a8\u4fdd\u5b58 SPP\n'
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
