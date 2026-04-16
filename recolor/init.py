@@ -221,7 +221,7 @@ def open_color_dialog():
 
     initial = QtGui.QColor(*current_color_rgb)
     dialog = QtWidgets.QColorDialog(initial, None)
-    dialog.setWindowTitle('Select Color')
+    dialog.setWindowTitle('\u9009\u62e9\u989c\u8272')
     dialog.setOption(QtWidgets.QColorDialog.DontUseNativeDialog, True)
     dialog.setOption(QtWidgets.QColorDialog.ShowAlphaChannel, False)
     active_color_dialog = dialog
@@ -231,7 +231,7 @@ def open_color_dialog():
         def eventFilter(self, watched, event):
             if event.type() == QtCore.QEvent.MouseButtonRelease and state['armed'] and state['pending_rgb'] is not None:
                 set_current_color_rgb(state['pending_rgb'])
-                substance_painter.logging.info('Picked color: ' + rgb_to_hex(current_color_rgb))
+                substance_painter.logging.info('\u5df2\u5438\u53d6\u989c\u8272\uff1a' + rgb_to_hex(current_color_rgb))
                 dialog.done(QtWidgets.QDialog.Accepted)
                 dialog.close()
             return False
@@ -260,11 +260,11 @@ def open_color_dialog():
 
 def get_active_stack():
     if not substance_painter.project.is_open():
-        substance_painter.logging.warning('Please open a Painter project first.')
+        substance_painter.logging.warning('\u8bf7\u5148\u6253\u5f00\u4e00\u4e2a Painter \u5de5\u7a0b\u3002')
         return None
     stack = substance_painter.textureset.get_active_stack()
     if stack is None:
-        substance_painter.logging.warning('No active Texture Set.')
+        substance_painter.logging.warning('\u5f53\u524d\u6ca1\u6709\u6fc0\u6d3b\u7684 Texture Set\u3002')
         return None
     return stack
 
@@ -282,12 +282,12 @@ def get_selected_fill_layer_sources():
             try:
                 sources.append(node.get_source(substance_painter.layerstack.ChannelType.BaseColor))
             except Exception as exc:
-                substance_painter.logging.warning('Failed to read Fill Layer BaseColor: ' + str(exc))
+                substance_painter.logging.warning('\u8bfb\u53d6 Fill Layer BaseColor \u5931\u8d25\uff1a' + str(exc))
         if not sources:
-            substance_painter.logging.warning('Select one or more Fill Layers first.')
+            substance_painter.logging.warning('\u8bf7\u5148\u9009\u4e2d\u4e00\u4e2a\u6216\u591a\u4e2a Fill Layer\u3002')
         return sources
     except Exception as exc:
-        substance_painter.logging.warning('Failed to read selected Fill Layers: ' + str(exc))
+        substance_painter.logging.warning('\u8bfb\u53d6\u9009\u4e2d Fill Layer \u5931\u8d25\uff1a' + str(exc))
         return []
 
 
@@ -306,9 +306,9 @@ def load_selected_fill_layer_color():
         current_color_value = color_value
         current_color_rgb = color_to_rgb255(color_value)
         update_color_preview()
-        substance_painter.logging.info('Loaded BaseColor: ' + rgb_to_hex(current_color_rgb))
+        substance_painter.logging.info('\u5df2\u8bfb\u53d6 BaseColor\uff1a' + rgb_to_hex(current_color_rgb))
     except Exception as exc:
-        substance_painter.logging.warning('Failed to read current color: ' + str(exc))
+        substance_painter.logging.warning('\u8bfb\u53d6\u5f53\u524d\u989c\u8272\u5931\u8d25\uff1a' + str(exc))
 
 
 def apply_current_color_to_selected_fill_layers():
@@ -329,13 +329,17 @@ def apply_current_color_to_selected_fill_layers():
                 except Exception:
                     continue
             if not applied:
-                substance_painter.logging.warning('Failed to apply color on one Fill Layer.')
+                substance_painter.logging.warning('\u6709\u4e00\u4e2a Fill Layer \u989c\u8272\u5199\u5165\u5931\u8d25\u3002')
         if changed_count:
-            substance_painter.logging.info('Applied {0} to {1} Fill Layer(s).'.format(rgb_to_hex(current_color_rgb), changed_count))
+            substance_painter.logging.info(
+                '\u5df2\u628a {0} \u5e94\u7528\u5230 {1} \u4e2a Fill Layer\u3002'.format(
+                    rgb_to_hex(current_color_rgb), changed_count
+                )
+            )
         else:
-            substance_painter.logging.warning('No Fill Layer was updated.')
+            substance_painter.logging.warning('\u6ca1\u6709\u6210\u529f\u66f4\u65b0\u4efb\u4f55 Fill Layer\u3002')
     except Exception as exc:
-        substance_painter.logging.warning('Failed to apply current color: ' + str(exc))
+        substance_painter.logging.warning('\u5e94\u7528\u5f53\u524d\u989c\u8272\u5931\u8d25\uff1a' + str(exc))
 
 
 def set_current_color_from_text():
@@ -344,9 +348,9 @@ def set_current_color_from_text():
     try:
         hex_value = normalize_hex_color(manual_color_line_edit.text())
         set_current_color_rgb(tuple(int(hex_value[i:i + 2], 16) for i in (1, 3, 5)))
-        substance_painter.logging.info('Set current color: ' + hex_value)
+        substance_painter.logging.info('\u5f53\u524d\u989c\u8272\u5df2\u8bbe\u7f6e\u4e3a\uff1a' + hex_value)
     except Exception:
-        substance_painter.logging.warning('Use a hex value like #FF6600.')
+        substance_painter.logging.warning('\u8bf7\u8f93\u5165\u7c7b\u4f3c #FF6600 \u7684\u5341\u516d\u8fdb\u5236\u989c\u8272\u3002')
 
 
 def make_quick_color_setter(index):
@@ -408,11 +412,31 @@ def build_export_basename(material_name):
     return 'ALP_Tx_' + material_name
 
 
+def normalize_folder_name(name):
+    return re.sub(r'[\s_-]+', '', str(name or '')).lower()
+
+
+def classify_export_folder(name):
+    normalized = normalize_folder_name(name)
+    if normalized in ('\u5149\u7167\u4fe1\u606f', 'lighting', 'lightinginfo', 'lightinfo'):
+        return 'lighting'
+    if normalized in ('id', 'id\u901a\u9053', 'idchannel', 'paletteindex', '\u8c03\u8272id', '\u8c03\u8272\u901a\u9053'):
+        return 'palette'
+    return None
+
+
+def build_special_export_basename(material_name, folder_kind):
+    base_name = build_export_basename(material_name)
+    if folder_kind == 'palette':
+        return base_name + '_PaletteIndex'
+    return base_name
+
+
 def get_export_directory():
     global last_export_dir
     project_path = substance_painter.project.file_path()
     if not project_path:
-        raise RuntimeError('Save the project first so the export path can be resolved.')
+        raise RuntimeError('\u8bf7\u5148\u4fdd\u5b58\u5de5\u7a0b\uff0c\u624d\u80fd\u786e\u5b9a\u5bfc\u51fa\u8def\u5f84\u3002')
     if export_dir_line_edit is not None:
         custom_dir = export_dir_line_edit.text().strip()
         if custom_dir:
@@ -438,7 +462,9 @@ def browse_export_directory():
             project_path = substance_painter.project.file_path()
             if project_path:
                 current_dir = os.path.dirname(project_path)
-    selected_dir = QtWidgets.QFileDialog.getExistingDirectory(None, 'Select Export Directory', current_dir)
+    selected_dir = QtWidgets.QFileDialog.getExistingDirectory(
+        None, '\u9009\u62e9\u5bfc\u51fa\u76ee\u5f55', current_dir
+    )
     if selected_dir:
         export_dir_line_edit.setText(selected_dir)
         last_export_dir = selected_dir
@@ -490,8 +516,8 @@ def export_basecolor_with_name(stack, export_basename):
     for paths in textures.values():
         exported_files.extend(paths)
     if not exported_files:
-        raise RuntimeError('Export finished but no file was generated.')
-    substance_painter.logging.info('Exported: ' + exported_files[0])
+        raise RuntimeError('\u5bfc\u51fa\u5b8c\u6210\uff0c\u4f46\u6ca1\u6709\u751f\u6210\u4efb\u4f55\u6587\u4ef6\u3002')
+    substance_painter.logging.info('\u5df2\u5bfc\u51fa\uff1a' + exported_files[0])
     return exported_files
 
 
@@ -504,7 +530,75 @@ def export_current_basecolor():
     try:
         export_basecolor_with_name(stack, export_basename)
     except Exception as exc:
-        substance_painter.logging.warning('Failed to export current BaseColor: ' + str(exc))
+        substance_painter.logging.warning('\u5bfc\u51fa\u5f53\u524d BaseColor \u5931\u8d25\uff1a' + str(exc))
+
+
+def export_special_maps():
+    data = get_active_stack_top_groups()
+    if data is None:
+        return
+    stack, groups = data
+    if not groups:
+        substance_painter.logging.warning('\u5f53\u524d Texture Set \u4e0b\u6ca1\u6709\u627e\u5230\u9876\u5c42\u6587\u4ef6\u5939\u3002')
+        return
+
+    material_name = get_material_name(stack)
+    all_nodes = []
+    original_visibility = {}
+    for group in groups:
+        node = substance_painter.layerstack.Node(group['uid'])
+        all_nodes.append((group['name'], node))
+        original_visibility[get_node_uid(node)] = node.is_visible()
+
+    matched_groups = []
+    for group in groups:
+        folder_kind = classify_export_folder(group['name'])
+        if folder_kind is None:
+            continue
+        matched_groups.append({
+            'kind': folder_kind,
+            'name': group['name'],
+            'node': substance_painter.layerstack.Node(group['uid']),
+        })
+
+    if not matched_groups:
+        substance_painter.logging.warning(
+            '\u6ca1\u6709\u627e\u5230\u53ef\u5bfc\u51fa\u7684\u76ee\u6807\u6587\u4ef6\u5939\uff0c'
+            '\u8bf7\u521b\u5efa\u540d\u4e3a\u201c\u5149\u7167\u4fe1\u606f\u201d\u548c/\u6216\u201cID\u901a\u9053\u201d\u7684\u9876\u5c42\u6587\u4ef6\u5939\u3002'
+        )
+        return
+
+    exported_kinds = set()
+    try:
+        for group in matched_groups:
+            target_uid = get_node_uid(group['node'])
+            for _, node in all_nodes:
+                node.set_visible(get_node_uid(node) == target_uid)
+            QtWidgets.QApplication.processEvents()
+            export_name = build_special_export_basename(material_name, group['kind'])
+            export_basecolor_with_name(stack, export_name)
+            exported_kinds.add(group['kind'])
+    except Exception as exc:
+        substance_painter.logging.warning('\u6309\u6587\u4ef6\u5939\u5bfc\u51fa\u5931\u8d25\uff1a' + str(exc))
+    finally:
+        for _, node in all_nodes:
+            node.set_visible(original_visibility.get(get_node_uid(node), True))
+        QtWidgets.QApplication.processEvents()
+
+    missing_kinds = []
+    if 'lighting' not in exported_kinds:
+        missing_kinds.append('\u5149\u7167\u4fe1\u606f')
+    if 'palette' not in exported_kinds:
+        missing_kinds.append('ID\u901a\u9053')
+
+    if missing_kinds:
+        substance_painter.logging.warning(
+            '\u7f3a\u5c11\u4ee5\u4e0b\u9876\u5c42\u6587\u4ef6\u5939\uff1a' + '\u3001'.join(missing_kinds)
+        )
+    elif exported_kinds:
+        substance_painter.logging.info(
+            '\u5df2\u6309 ALP \u89c4\u5219\u5bfc\u51fa\u5149\u7167\u4fe1\u606f\u56fe\u548c ID \u56fe\u3002'
+        )
 
 
 def get_active_stack_top_groups():
@@ -581,12 +675,12 @@ class RecolorToolWidget(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName('alp_recolor_export_panel')
-        self.setWindowTitle('ALP Recolor Export')
+        self.setWindowTitle('ALP \u91cd\u7740\u8272\u5bfc\u51fa')
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        title = QtWidgets.QLabel('Current Color')
+        title = QtWidgets.QLabel('\u5f53\u524d\u989c\u8272')
         title.setStyleSheet('font-weight: 600;')
         layout.addWidget(title)
 
@@ -597,21 +691,14 @@ class RecolorToolWidget(QtWidgets.QWidget):
         color_swatch_label.setFixedSize(44, 44)
         preview_layout.addWidget(color_swatch_label)
 
-        picker_button = QtWidgets.QPushButton('Qt Eyedropper')
+        picker_button = QtWidgets.QPushButton('Qt \u5438\u8272')
         picker_button.clicked.connect(open_color_dialog)
-        picker_button.setToolTip('Open the Qt color panel and try to enter screen picking immediately.')
+        picker_button.setToolTip(
+            '\u6253\u5f00 Qt \u53d6\u8272\u9762\u677f\uff0c\u5e76\u76f4\u63a5\u5c1d\u8bd5\u8fdb\u5165\u5c4f\u5e55\u5438\u8272\u6a21\u5f0f\u3002'
+        )
         preview_layout.addWidget(picker_button)
         preview_layout.addStretch(1)
         layout.addLayout(preview_layout)
-
-        quick_colors_layout = QtWidgets.QGridLayout()
-        quick_colors_layout.setHorizontalSpacing(4)
-        quick_colors_layout.setVerticalSpacing(4)
-        for index in range(len(quick_color_presets)):
-            button = QuickColorButton(index)
-            quick_colors_layout.addWidget(button, index // 6, index % 6)
-            quick_color_buttons.append(button)
-        layout.addLayout(quick_colors_layout)
 
         global color_hex_label
         color_hex_label = QtWidgets.QLabel()
@@ -624,16 +711,16 @@ class RecolorToolWidget(QtWidgets.QWidget):
         manual_color_line_edit.setPlaceholderText('#FF6600')
         manual_color_layout.addWidget(manual_color_line_edit, 1)
 
-        set_manual_color_button = QtWidgets.QPushButton('Set Hex Color')
+        set_manual_color_button = QtWidgets.QPushButton('\u8bbe\u7f6e\u5341\u516d\u8fdb\u5236\u989c\u8272')
         set_manual_color_button.clicked.connect(set_current_color_from_text)
         manual_color_layout.addWidget(set_manual_color_button)
         layout.addLayout(manual_color_layout)
 
-        read_color_button = QtWidgets.QPushButton('Read Selected Fill Layer Color')
+        read_color_button = QtWidgets.QPushButton('\u8bfb\u53d6\u9009\u4e2d\u586b\u5145\u5c42\u989c\u8272')
         read_color_button.clicked.connect(load_selected_fill_layer_color)
         layout.addWidget(read_color_button)
 
-        apply_color_button = QtWidgets.QPushButton('Apply Current Color To Selected Fill Layers')
+        apply_color_button = QtWidgets.QPushButton('\u5f53\u524d\u989c\u8272\u586b\u5145\u5230\u9009\u4e2d\u586b\u5145\u5c42')
         apply_color_button.clicked.connect(apply_current_color_to_selected_fill_layers)
         layout.addWidget(apply_color_button)
 
@@ -642,35 +729,36 @@ class RecolorToolWidget(QtWidgets.QWidget):
         line.setFrameShadow(QtWidgets.QFrame.Sunken)
         layout.addWidget(line)
 
-        export_dir_title = QtWidgets.QLabel('Export Directory')
+        export_dir_title = QtWidgets.QLabel('\u5bfc\u51fa\u76ee\u5f55')
         export_dir_title.setStyleSheet('font-weight: 600;')
         layout.addWidget(export_dir_title)
 
         export_dir_layout = QtWidgets.QHBoxLayout()
         global export_dir_line_edit
         export_dir_line_edit = QtWidgets.QLineEdit()
-        export_dir_line_edit.setPlaceholderText('Leave empty to use the .spp directory')
+        export_dir_line_edit.setPlaceholderText('\u7559\u7a7a\u5219\u5bfc\u51fa\u5230 .spp \u540c\u76ee\u5f55')
         export_dir_line_edit.setText(last_export_dir)
         export_dir_line_edit.editingFinished.connect(persist_export_directory)
         export_dir_layout.addWidget(export_dir_line_edit, 1)
 
-        browse_button = QtWidgets.QPushButton('Browse')
+        browse_button = QtWidgets.QPushButton('\u6d4f\u89c8')
         browse_button.clicked.connect(browse_export_directory)
         export_dir_layout.addWidget(browse_button)
         layout.addLayout(export_dir_layout)
 
-        export_button = QtWidgets.QPushButton('Export Current BaseColor')
+        export_button = QtWidgets.QPushButton('\u5bfc\u51fa\u5f53\u524d\u53ef\u89c1 BaseColor')
         export_button.clicked.connect(export_current_basecolor)
         layout.addWidget(export_button)
 
-        export_groups_button = QtWidgets.QPushButton('Export BaseColor By Top Folder')
-        export_groups_button.clicked.connect(export_basecolor_by_top_groups)
+        export_groups_button = QtWidgets.QPushButton('\u6309\u6587\u4ef6\u5939\u5bfc\u51fa\u5149\u7167\u4fe1\u606f\u548c ID \u56fe')
+        export_groups_button.clicked.connect(export_special_maps)
         layout.addWidget(export_groups_button)
 
         hint = QtWidgets.QLabel(
-            'Quick colors: left click apply, right click save current color\n'
-            'Leave export directory empty to use the .spp folder\n'
-            'Name rule: ALP_Mat_type_name -> ALP_Tx_type_name'
+            '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
+            '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
+            '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
+            '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex'
         )
         hint.setWordWrap(True)
         hint.setStyleSheet('color: #BBBBBB;')
@@ -692,9 +780,8 @@ def open_panel():
 
 
 def start_plugin():
-    load_quick_colors()
     load_plugin_settings()
-    panel_action = QtGui.QAction('Open ALP Recolor Export Panel', None)
+    panel_action = QtGui.QAction('\u6253\u5f00 ALP \u91cd\u7740\u8272\u5bfc\u51fa\u9762\u677f', None)
     panel_action.triggered.connect(open_panel)
     substance_painter.ui.add_action(substance_painter.ui.ApplicationMenu.File, panel_action)
     plugin_widgets.append(panel_action)
