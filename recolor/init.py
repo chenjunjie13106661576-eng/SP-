@@ -804,6 +804,31 @@ def find_ground_ao_properties(common_params, ao_params):
     return matched
 
 
+def build_ground_ao_property_updates(common_params, ao_params):
+    matched_ground_props = find_ground_ao_properties(common_params, ao_params)
+    property_updates = {}
+    enabled_names = []
+    skipped_names = []
+
+    for name, prop in matched_ground_props:
+        try:
+            widget_type = prop.widget_type()
+        except Exception:
+            widget_type = ''
+        try:
+            current_value = prop.value()
+        except Exception:
+            current_value = None
+
+        if widget_type == 'Togglebutton' or isinstance(current_value, bool):
+            property_updates[prop] = True
+            enabled_names.append(name)
+        else:
+            skipped_names.append(name)
+
+    return property_updates, enabled_names, skipped_names
+
+
 def bake_mesh_maps_with_ground_ao():
     stack = get_active_stack()
     if stack is None:
@@ -819,16 +844,21 @@ def bake_mesh_maps_with_ground_ao():
         baking_params.set_textureset_enabled(True)
         baking_params.set_baker_enabled(substance_painter.textureset.MeshMapUsage.AO, True)
 
-        property_updates = {}
-        matched_ground_props = find_ground_ao_properties(common_params, ao_params)
-        for _, prop in matched_ground_props:
-            property_updates[prop] = True
+        property_updates, enabled_names, skipped_names = build_ground_ao_property_updates(common_params, ao_params)
 
         if property_updates:
             substance_painter.baking.BakingParameters.set(property_updates)
             substance_painter.logging.info(
-                '\u5df2\u4e3a AO \u6253\u5f00\u5730\u9762\u76f8\u5173\u53c2\u6570\uff1a'
-                + ', '.join(name for name, _ in matched_ground_props)
+                '\u5df2\u4e3a AO \u6253\u5f00\u5730\u9762\u5f00\u5173\uff1a' + ', '.join(enabled_names)
+            )
+            if skipped_names:
+                substance_painter.logging.info(
+                    '\u5df2\u8df3\u8fc7\u975e\u5f00\u5173\u578b\u5730\u9762\u53c2\u6570\uff1a' + ', '.join(skipped_names)
+                )
+        elif skipped_names:
+            substance_painter.logging.warning(
+                '\u627e\u5230\u5730\u9762\u76f8\u5173\u53c2\u6570\uff0c\u4f46\u90fd\u4e0d\u662f\u52fe\u9009\u9879\uff1a'
+                + ', '.join(skipped_names)
             )
         else:
             substance_painter.logging.warning(
