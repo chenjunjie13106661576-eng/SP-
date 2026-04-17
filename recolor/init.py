@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 
+import substance_painter.baking
 import substance_painter.export
 import substance_painter.js
 import substance_painter.layerstack
@@ -792,6 +793,56 @@ def export_palette_index_map():
     export_single_special_map('palette')
 
 
+def find_ground_ao_properties(common_params, ao_params):
+    matched = []
+    keywords = ('ground', 'floor', '\u5730\u9762')
+    for prop_dict in (common_params, ao_params):
+        for name, prop in prop_dict.items():
+            normalized = str(name or '').replace(' ', '').replace('_', '').lower()
+            if any(keyword in normalized for keyword in keywords):
+                matched.append((name, prop))
+    return matched
+
+
+def bake_mesh_maps_with_ground_ao():
+    stack = get_active_stack()
+    if stack is None:
+        return
+
+    texture_set = stack.material()
+    texture_set_name = get_material_name(stack)
+    try:
+        baking_params = substance_painter.baking.BakingParameters.from_texture_set(texture_set)
+        common_params = baking_params.common()
+        ao_params = baking_params.baker(substance_painter.textureset.MeshMapUsage.AO)
+
+        baking_params.set_textureset_enabled(True)
+        baking_params.set_baker_enabled(substance_painter.textureset.MeshMapUsage.AO, True)
+
+        property_updates = {}
+        matched_ground_props = find_ground_ao_properties(common_params, ao_params)
+        for _, prop in matched_ground_props:
+            property_updates[prop] = True
+
+        if property_updates:
+            substance_painter.baking.BakingParameters.set(property_updates)
+            substance_painter.logging.info(
+                '\u5df2\u4e3a AO \u6253\u5f00\u5730\u9762\u76f8\u5173\u53c2\u6570\uff1a'
+                + ', '.join(name for name, _ in matched_ground_props)
+            )
+        else:
+            substance_painter.logging.warning(
+                '\u672a\u627e\u5230 AO \u201c\u5730\u9762\u201d\u53c2\u6570\uff0c\u5df2\u6539\u4e3a\u76f4\u63a5\u5f00\u59cb AO \u70d8\u7119\u3002'
+            )
+
+        substance_painter.baking.bake_async(texture_set)
+        substance_painter.logging.info(
+            '\u5df2\u5f00\u59cb\u70d8\u7119\u7f51\u683c\u8d34\u56fe\uff08AO \u542f\u7528\uff09\uff1a' + texture_set_name
+        )
+    except Exception as exc:
+        substance_painter.logging.warning('\u5f00\u59cb\u70d8\u7119\u7f51\u683c\u8d34\u56fe\u5931\u8d25\uff1a' + str(exc))
+
+
 def save_project_to_material_folder():
     stack = get_active_stack()
     if stack is None:
@@ -981,6 +1032,10 @@ class RecolorToolWidget(QtWidgets.QWidget):
         save_project_button.clicked.connect(save_project_to_material_folder)
         layout.addWidget(save_project_button)
 
+        bake_button = QtWidgets.QPushButton('\u70d8\u7119\u7f51\u683c\u8d34\u56fe\uff08AO \u52fe\u9009\u5730\u9762\uff09')
+        bake_button.clicked.connect(bake_mesh_maps_with_ground_ao)
+        layout.addWidget(bake_button)
+
         export_button = QtWidgets.QPushButton('\u5bfc\u51fa\u5f53\u524d\u53ef\u89c1 BaseColor')
         export_button.clicked.connect(export_current_basecolor)
         layout.addWidget(export_button)
@@ -997,6 +1052,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
             '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
             '\u5de5\u7a0b\u4fdd\u5b58\u6309\u94ae\u4f1a\u521b\u5efa\u201c\u7c7b\u578b_\u540d\u79f0\u201d\u6587\u4ef6\u5939\uff0c\u5e76\u4fdd\u5b58\u4e3a\u540c\u540d .spp\n'
             '\u5f53\u5de5\u7a0b\u672a\u4fdd\u5b58\u65f6\uff0c\u5bfc\u51fa\u524d\u4f1a\u5148\u81ea\u52a8\u4fdd\u5b58 SPP\n'
+            '\u70d8\u7119\u6309\u94ae\u4f1a\u542f\u7528 AO\uff0c\u5e76\u5728\u53ef\u7528\u65f6\u81ea\u52a8\u52fe\u9009\u5730\u9762\u76f8\u5173\u53c2\u6570\n'
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
