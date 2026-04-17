@@ -445,7 +445,7 @@ def classify_export_folder(name):
 def build_special_export_basename(material_name, folder_kind):
     base_name = build_export_basename(material_name)
     if folder_kind == 'palette':
-        return base_name + '_ID'
+        return base_name + '_PaletteIndex'
     return base_name
 
 
@@ -1000,7 +1000,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
-            '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_ID'
+            '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex'
         )
         hint.setWordWrap(True)
         hint.setStyleSheet('color: #BBBBBB;')
