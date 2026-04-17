@@ -4,6 +4,7 @@ import re
 import shutil
 
 import substance_painter.baking
+import substance_painter.event
 import substance_painter.export
 import substance_painter.js
 import substance_painter.layerstack
@@ -873,6 +874,14 @@ def bake_mesh_maps_with_ground_ao():
         substance_painter.logging.warning('\u5f00\u59cb\u70d8\u7119\u7f51\u683c\u8d34\u56fe\u5931\u8d25\uff1a' + str(exc))
 
 
+def handle_baking_process_ended(_event):
+    try:
+        QtCore.QTimer.singleShot(0, lambda: substance_painter.ui.switch_to_mode(substance_painter.ui.UIMode.Edition))
+        substance_painter.logging.info('\u70d8\u7119\u5b8c\u6210\uff0c\u5df2\u5207\u56de\u7ed8\u753b\u754c\u9762\u3002')
+    except Exception as exc:
+        substance_painter.logging.warning('\u70d8\u7119\u7ed3\u675f\u540e\u5207\u56de\u7ed8\u753b\u754c\u9762\u5931\u8d25\uff1a' + str(exc))
+
+
 def save_project_to_material_folder():
     stack = get_active_stack()
     if stack is None:
@@ -1109,6 +1118,10 @@ def open_panel():
 
 def start_plugin():
     load_plugin_settings()
+    substance_painter.event.DISPATCHER.connect_strong(
+        substance_painter.event.BakingProcessEnded,
+        handle_baking_process_ended
+    )
     panel_action = QtGui.QAction('\u6253\u5f00 ALP \u91cd\u7740\u8272\u5bfc\u51fa\u9762\u677f', None)
     panel_action.triggered.connect(open_panel)
     substance_painter.ui.add_action(substance_painter.ui.ApplicationMenu.File, panel_action)
@@ -1125,6 +1138,14 @@ def close_plugin():
     global project_dir_line_edit
     global manual_color_line_edit
     global quick_color_buttons
+
+    try:
+        substance_painter.event.DISPATCHER.disconnect(
+            substance_painter.event.BakingProcessEnded,
+            handle_baking_process_ended
+        )
+    except Exception:
+        pass
 
     for widget in plugin_widgets:
         substance_painter.ui.delete_ui_element(widget)
