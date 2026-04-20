@@ -101,6 +101,8 @@ def load_plugin_settings():
     data = load_json(SETTINGS_FILE, {})
     last_export_dir = str(data.get('last_export_dir', '') or '')
     last_project_dir = str(data.get('last_project_dir', '') or '')
+    if last_export_dir and looks_like_material_type_folder(last_export_dir):
+        last_export_dir = os.path.dirname(os.path.normpath(last_export_dir))
 
 
 def save_plugin_settings():
@@ -457,6 +459,59 @@ def build_material_folder_name(material_name):
     return sanitize_filename(material_name)
 
 
+def extract_material_type_and_name(material_name):
+    if material_name.startswith('ALP_Mat_'):
+        payload = material_name[len('ALP_Mat_'):]
+    elif material_name.startswith('ALP_Tx_'):
+        payload = material_name[len('ALP_Tx_'):]
+    else:
+        payload = material_name
+
+    parts = [part for part in str(payload).split('_') if part]
+    if len(parts) >= 2:
+        material_type = sanitize_filename(parts[0])
+        material_leaf_name = sanitize_filename('_'.join(parts[1:]))
+        return material_type, material_leaf_name
+
+    sanitized = sanitize_filename(payload)
+    return sanitized, sanitized
+
+
+def looks_like_material_type_folder(path):
+    folder_name = os.path.basename(os.path.normpath(path))
+    if not folder_name:
+        return False
+    normalized = re.sub(r'[\s_-]+', '', folder_name).lower()
+    if normalized in ('texture', 'textures', 'art', 'assets', 'client'):
+        return False
+    return bool(re.match(r'^[a-z][a-z0-9]*$', normalized))
+
+
+def resolve_export_root_directory():
+    global last_export_dir
+    project_path = substance_painter.project.file_path()
+    if not project_path:
+        raise RuntimeError('\u8bf7\u5148\u4fdd\u5b58\u5de5\u7a0b\uff0c\u624d\u80fd\u786e\u5b9a\u5bfc\u51fa\u8def\u5f84\u3002')
+
+    if export_dir_line_edit is not None:
+        custom_dir = export_dir_line_edit.text().strip()
+        if custom_dir:
+            normalized_dir = os.path.normpath(custom_dir)
+            if looks_like_material_type_folder(normalized_dir):
+                normalized_dir = os.path.dirname(normalized_dir)
+            os.makedirs(normalized_dir, exist_ok=True)
+            if normalized_dir != last_export_dir:
+                last_export_dir = normalized_dir
+                if export_dir_line_edit.text().strip() != normalized_dir:
+                    export_dir_line_edit.setText(normalized_dir)
+                save_plugin_settings()
+            return normalized_dir
+
+    export_root = os.path.dirname(project_path)
+    os.makedirs(export_root, exist_ok=True)
+    return export_root
+
+
 def build_material_project_path(material_name):
     folder_name = build_material_folder_name(material_name)
     root_dir = get_project_output_root_directory()
@@ -486,19 +541,15 @@ def ensure_project_saved_before_export(material_name=None):
 
 
 def get_export_directory():
-    global last_export_dir
-    project_path = substance_painter.project.file_path()
-    if not project_path:
-        raise RuntimeError('\u8bf7\u5148\u4fdd\u5b58\u5de5\u7a0b\uff0c\u624d\u80fd\u786e\u5b9a\u5bfc\u51fa\u8def\u5f84\u3002')
-    if export_dir_line_edit is not None:
-        custom_dir = export_dir_line_edit.text().strip()
-        if custom_dir:
-            os.makedirs(custom_dir, exist_ok=True)
-            if custom_dir != last_export_dir:
-                last_export_dir = custom_dir
-                save_plugin_settings()
-            return custom_dir
-    export_dir = os.path.dirname(project_path)
+    export_dir = resolve_export_root_directory()
+    os.makedirs(export_dir, exist_ok=True)
+    return export_dir
+
+
+def get_export_directory_for_material(material_name):
+    export_root = resolve_export_root_directory()
+    material_type, _ = extract_material_type_and_name(material_name)
+    export_dir = os.path.join(export_root, material_type)
     os.makedirs(export_dir, exist_ok=True)
     return export_dir
 
@@ -626,7 +677,8 @@ def copy_exported_files_to_project_folder(exported_files):
 
 
 def export_basecolor_with_name(stack, export_basename, mirror_to_project_folder=False):
-    export_dir = get_export_directory()
+    material_name = get_material_name(stack)
+    export_dir = get_export_directory_for_material(material_name)
     export_basename = sanitize_filename(export_basename)
     config = build_basecolor_export_config(stack, export_basename, export_dir)
     result = substance_painter.export.export_project_textures(config)
@@ -1036,7 +1088,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
         export_dir_layout = QtWidgets.QHBoxLayout()
         global export_dir_line_edit
         export_dir_line_edit = QtWidgets.QLineEdit()
-        export_dir_line_edit.setPlaceholderText('\u7559\u7a7a\u5219\u5bfc\u51fa\u5230 .spp \u540c\u76ee\u5f55')
+        export_dir_line_edit.setPlaceholderText('\u586b Texture \u6839\u76ee\u5f55\uff0c\u63d2\u4ef6\u4f1a\u81ea\u52a8\u6309\u7c7b\u578b\u5206\u6587\u4ef6\u5939')
         export_dir_line_edit.setText(last_export_dir)
         export_dir_line_edit.editingFinished.connect(persist_export_directory)
         export_dir_layout.addWidget(export_dir_line_edit, 1)
@@ -1088,7 +1140,8 @@ class RecolorToolWidget(QtWidgets.QWidget):
         layout.addWidget(export_palette_button)
 
         hint = QtWidgets.QLabel(
-            '\u5bfc\u51fa\u76ee\u5f55\u7559\u7a7a\u65f6\uff0c\u9ed8\u8ba4\u4f7f\u7528 .spp \u6240\u5728\u76ee\u5f55\n'
+            '\u5bfc\u51fa\u76ee\u5f55\u8bf7\u586b Texture \u6839\u76ee\u5f55\uff0c\u63d2\u4ef6\u4f1a\u81ea\u52a8\u6309\u7c7b\u578b\u5206\u53d1\n'
+            '\u4f8b\u5982 ALP_Tx_FURN_xxx -> Texture\\\\FURN\uff0cALP_Tx_CeilingM_xxx -> Texture\\\\CeilingM\n'
             '\u5de5\u7a0b\u4fdd\u5b58\u6309\u94ae\u4f1a\u521b\u5efa\u201c\u7c7b\u578b_\u540d\u79f0\u201d\u6587\u4ef6\u5939\uff0c\u5e76\u4fdd\u5b58\u4e3a\u540c\u540d .spp\n'
             '\u5f53\u5de5\u7a0b\u672a\u4fdd\u5b58\u65f6\uff0c\u5bfc\u51fa\u524d\u4f1a\u5148\u81ea\u52a8\u4fdd\u5b58 SPP\n'
             '\u70d8\u7119\u6309\u94ae\u4f1a\u542f\u7528 AO\uff0c\u5e76\u5728\u53ef\u7528\u65f6\u81ea\u52a8\u52fe\u9009\u5730\u9762\u76f8\u5173\u53c2\u6570\n'
