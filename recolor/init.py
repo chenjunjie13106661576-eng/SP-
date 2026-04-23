@@ -632,9 +632,23 @@ def persist_project_directory():
     save_plugin_settings()
 
 
-def build_basecolor_export_config(stack, export_basename, export_dir):
+def build_basecolor_export_config(stack, export_basename, export_dir, export_kind='basecolor'):
     root_path = str(stack)
-    preset_name = 'alp_basecolor_only'
+    preset_name = 'PaletteIndex' if export_kind == 'palette' else 'alp_basecolor_only'
+    if export_kind == 'palette':
+        channels = [{
+            'destChannel': 'L',
+            'srcChannel': 'L',
+            'srcMapType': 'documentMap',
+            'srcMapName': 'basecolor',
+            'srcPath': ''
+        }]
+    else:
+        channels = [
+            {'destChannel': 'R', 'srcChannel': 'R', 'srcMapType': 'documentMap', 'srcMapName': 'basecolor'},
+            {'destChannel': 'G', 'srcChannel': 'G', 'srcMapType': 'documentMap', 'srcMapName': 'basecolor'},
+            {'destChannel': 'B', 'srcChannel': 'B', 'srcMapType': 'documentMap', 'srcMapName': 'basecolor'},
+        ]
     return {
         'exportShaderParams': False,
         'exportPath': export_dir,
@@ -643,11 +657,7 @@ def build_basecolor_export_config(stack, export_basename, export_dir):
             'name': preset_name,
             'maps': [{
                 'fileName': export_basename,
-                'channels': [
-                    {'destChannel': 'R', 'srcChannel': 'R', 'srcMapType': 'documentMap', 'srcMapName': 'basecolor'},
-                    {'destChannel': 'G', 'srcChannel': 'G', 'srcMapType': 'documentMap', 'srcMapName': 'basecolor'},
-                    {'destChannel': 'B', 'srcChannel': 'B', 'srcMapType': 'documentMap', 'srcMapName': 'basecolor'},
-                ],
+                'channels': channels,
                 'parameters': {'fileFormat': 'png', 'bitDepth': '8', 'dithering': True, 'paddingAlgorithm': 'infinite'},
             }],
         }],
@@ -676,11 +686,11 @@ def copy_exported_files_to_project_folder(exported_files):
     return copied_files
 
 
-def export_basecolor_with_name(stack, export_basename, mirror_to_project_folder=False):
+def export_basecolor_with_name(stack, export_basename, mirror_to_project_folder=False, export_kind='basecolor'):
     material_name = get_material_name(stack)
     export_dir = get_export_directory_for_material(material_name)
     export_basename = sanitize_filename(export_basename)
-    config = build_basecolor_export_config(stack, export_basename, export_dir)
+    config = build_basecolor_export_config(stack, export_basename, export_dir, export_kind=export_kind)
     result = substance_painter.export.export_project_textures(config)
     exported_files = []
     textures = getattr(result, 'textures', None)
@@ -761,7 +771,13 @@ def export_special_maps():
                 node.set_visible(get_node_uid(node) == target_uid)
             QtWidgets.QApplication.processEvents()
             export_name = build_special_export_basename(material_name, group['kind'])
-            export_basecolor_with_name(stack, export_name, mirror_to_project_folder=True)
+            export_kind = 'palette' if group['kind'] == 'palette' else 'basecolor'
+            export_basecolor_with_name(
+                stack,
+                export_name,
+                mirror_to_project_folder=True,
+                export_kind=export_kind
+            )
             exported_kinds.add(group['kind'])
     except Exception as exc:
         substance_painter.logging.warning('\u6309\u6587\u4ef6\u5939\u5bfc\u51fa\u5931\u8d25\uff1a' + str(exc))
@@ -824,7 +840,13 @@ def export_single_special_map(target_kind):
             node.set_visible(get_node_uid(node) == target_uid)
         QtWidgets.QApplication.processEvents()
         export_name = build_special_export_basename(material_name, target_kind)
-        export_basecolor_with_name(stack, export_name, mirror_to_project_folder=True)
+        export_kind = 'palette' if target_kind == 'palette' else 'basecolor'
+        export_basecolor_with_name(
+            stack,
+            export_name,
+            mirror_to_project_folder=True,
+            export_kind=export_kind
+        )
         substance_painter.logging.info(
             '\u5df2\u5bfc\u51fa{0}\uff1a{1}'.format(target_label, export_name)
         )
@@ -1148,7 +1170,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
-            '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex'
+            '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex\uff0c\u5e76\u8d70 PaletteIndex \u6a21\u7248'
         )
         hint.setWordWrap(True)
         hint.setStyleSheet('color: #BBBBBB;')
