@@ -403,12 +403,9 @@ def get_material_name(stack):
     material = stack.material()
     if hasattr(material, 'name'):
         try:
-            return material.name()
-        except TypeError:
-            try:
-                return material.name
-            except Exception:
-                pass
+            return material.name
+        except Exception:
+            pass
     material_name = str(material)
     if '/' in material_name:
         material_name = material_name.split('/', 1)[0]
