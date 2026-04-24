@@ -529,9 +529,6 @@ def ensure_project_saved_before_export(material_name=None):
 
     project_path = substance_painter.project.file_path()
     if project_path:
-        if substance_painter.project.needs_saving():
-            substance_painter.project.save()
-            substance_painter.logging.info('\u5df2\u5728\u5bfc\u51fa\u524d\u81ea\u52a8\u4fdd\u5b58\u5f53\u524d SPP\u3002')
         return project_path
 
     target_path = build_material_project_path(material_name)
