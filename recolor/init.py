@@ -450,6 +450,31 @@ def build_special_export_basename(material_name, folder_kind):
     return base_name
 
 
+def build_project_file_basename(material_name=None):
+    project_path = substance_painter.project.file_path()
+    if not project_path:
+        project_path = ensure_project_saved_before_export(material_name)
+    file_stem = os.path.splitext(os.path.basename(project_path))[0]
+    return sanitize_filename(file_stem)
+
+
+def collect_direct_child_folders(group):
+    folders = []
+    for layer in group.get('layers', []):
+        if 'layers' not in layer:
+            continue
+        uid = layer.get('uid')
+        name = layer.get('name')
+        if uid is None or not name:
+            continue
+        folders.append({
+            'uid': uid,
+            'name': name,
+            'layers': layer.get('layers', []),
+        })
+    return folders
+
+
 def build_material_folder_name(material_name):
     if material_name.startswith('ALP_Mat_'):
         return sanitize_filename(material_name[len('ALP_Mat_'):])
@@ -680,9 +705,14 @@ def copy_exported_files_to_project_folder(exported_files):
     return copied_files
 
 
-def export_basecolor_with_name(stack, export_basename, mirror_to_project_folder=False, export_kind='basecolor'):
+def export_basecolor_with_name(
+        stack,
+        export_basename,
+        mirror_to_project_folder=False,
+        export_kind='basecolor',
+        export_folder_key=None):
     material_name = get_material_name(stack)
-    export_dir = get_export_directory_for_material(material_name)
+    export_dir = get_export_directory_for_material(export_folder_key or material_name)
     export_basename = sanitize_filename(export_basename)
     config = build_basecolor_export_config(stack, export_basename, export_dir, export_kind=export_kind)
     result = substance_painter.export.export_project_textures(config)
@@ -859,7 +889,87 @@ def export_lighting_map():
 
 
 def export_palette_index_map():
-    export_single_special_map('palette')
+    data = get_active_stack_top_groups()
+    if data is None:
+        return
+    stack, groups = data
+    if not groups:
+        substance_painter.logging.warning('当前 Texture Set 下没有找到顶层文件夹。')
+        return
+
+    material_name = get_material_name(stack)
+    try:
+        ensure_project_saved_before_export(material_name)
+        project_base_name = build_project_file_basename(material_name)
+    except Exception as exc:
+        substance_painter.logging.warning('导出前自动保存失败：' + str(exc))
+        return
+
+    top_nodes = []
+    all_nodes = []
+    original_visibility = {}
+    palette_group = None
+    for group in groups:
+        node = substance_painter.layerstack.Node(group['uid'])
+        top_nodes.append((group['name'], node))
+        all_nodes.append(node)
+        original_visibility[get_node_uid(node)] = node.is_visible()
+        if classify_export_folder(group['name']) == 'palette':
+            palette_group = group
+
+    if palette_group is None:
+        substance_painter.logging.warning('没有找到顶层文件夹“ID通道”。')
+        return
+
+    child_groups = collect_direct_child_folders(palette_group)
+    export_targets = child_groups if child_groups else [{
+        'uid': palette_group['uid'],
+        'name': palette_group['name'],
+    }]
+
+    for target in child_groups:
+        node = substance_painter.layerstack.Node(target['uid'])
+        all_nodes.append(node)
+        original_visibility[get_node_uid(node)] = node.is_visible()
+
+    try:
+        palette_uid = get_node_uid(substance_painter.layerstack.Node(palette_group['uid']))
+        for target in export_targets:
+            target_uid = get_node_uid(substance_painter.layerstack.Node(target['uid']))
+            for _, node in top_nodes:
+                node.set_visible(get_node_uid(node) == palette_uid)
+            for child in child_groups:
+                child_node = substance_painter.layerstack.Node(child['uid'])
+                child_node.set_visible(get_node_uid(child_node) == target_uid)
+            QtWidgets.QApplication.processEvents()
+
+            if child_groups:
+                export_name = '{0}_{1}_PaletteIndex'.format(
+                    project_base_name,
+                    sanitize_filename(target['name'])
+                )
+            else:
+                export_name = project_base_name + '_PaletteIndex'
+
+            export_basecolor_with_name(
+                stack,
+                export_name,
+                mirror_to_project_folder=True,
+                export_kind='palette',
+                export_folder_key=project_base_name
+            )
+            substance_painter.logging.info('已按图层文件夹导出 ID 图：' + export_name)
+    except Exception as exc:
+        substance_painter.logging.warning('按图层文件夹导出 ID 图失败：' + str(exc))
+    finally:
+        restored_uids = set()
+        for node in all_nodes:
+            uid = get_node_uid(node)
+            if uid in restored_uids:
+                continue
+            node.set_visible(original_visibility.get(uid, True))
+            restored_uids.add(uid)
+        QtWidgets.QApplication.processEvents()
 
 
 def find_ground_ao_properties(common_params, ao_params):
@@ -1002,7 +1112,11 @@ def get_active_stack_top_groups():
             name = layer.get('name')
             if uid is None or not name:
                 continue
-            groups.append({'uid': uid, 'name': name})
+            groups.append({
+                'uid': uid,
+                'name': name,
+                'layers': layer.get('layers', []),
+            })
         break
     return stack, groups
 
@@ -1164,7 +1278,7 @@ class RecolorToolWidget(QtWidgets.QWidget):
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
             '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
-            '\u9876\u5c42\u6587\u4ef6\u5939\u201cID\u901a\u9053\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0_PaletteIndex\uff0c\u5e76\u8d70 PaletteIndex \u6a21\u7248'
+            '“ID通道”会按里面的图层文件夹逐个导出，命名为 SPP文件名_文件夹名_PaletteIndex，并走 PaletteIndex 模板'
         )
         hint.setWordWrap(True)
         hint.setStyleSheet('color: #BBBBBB;')
