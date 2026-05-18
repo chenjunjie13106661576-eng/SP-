@@ -888,7 +888,7 @@ def export_lighting_map():
     export_single_special_map('lighting')
 
 
-def export_palette_index_map():
+def export_by_layer_folders():
     data = get_active_stack_top_groups()
     if data is None:
         return
@@ -906,69 +906,33 @@ def export_palette_index_map():
         return
 
     top_nodes = []
-    all_nodes = []
     original_visibility = {}
-    palette_group = None
     for group in groups:
         node = substance_painter.layerstack.Node(group['uid'])
         top_nodes.append((group['name'], node))
-        all_nodes.append(node)
-        original_visibility[get_node_uid(node)] = node.is_visible()
-        if classify_export_folder(group['name']) == 'palette':
-            palette_group = group
-
-    if palette_group is None:
-        substance_painter.logging.warning('没有找到顶层文件夹“ID通道”。')
-        return
-
-    child_groups = collect_direct_child_folders(palette_group)
-    export_targets = child_groups if child_groups else [{
-        'uid': palette_group['uid'],
-        'name': palette_group['name'],
-    }]
-
-    for target in child_groups:
-        node = substance_painter.layerstack.Node(target['uid'])
-        all_nodes.append(node)
         original_visibility[get_node_uid(node)] = node.is_visible()
 
     try:
-        palette_uid = get_node_uid(substance_painter.layerstack.Node(palette_group['uid']))
-        for target in export_targets:
-            target_uid = get_node_uid(substance_painter.layerstack.Node(target['uid']))
+        for target_name, target_node in top_nodes:
+            target_uid = get_node_uid(target_node)
             for _, node in top_nodes:
-                node.set_visible(get_node_uid(node) == palette_uid)
-            for child in child_groups:
-                child_node = substance_painter.layerstack.Node(child['uid'])
-                child_node.set_visible(get_node_uid(child_node) == target_uid)
+                node.set_visible(get_node_uid(node) == target_uid)
             QtWidgets.QApplication.processEvents()
 
-            if child_groups:
-                export_name = '{0}_{1}_PaletteIndex'.format(
-                    project_base_name,
-                    sanitize_filename(target['name'])
-                )
-            else:
-                export_name = project_base_name + '_PaletteIndex'
-
+            export_name = '{0}_{1}'.format(project_base_name, sanitize_filename(target_name))
             export_basecolor_with_name(
                 stack,
                 export_name,
                 mirror_to_project_folder=True,
-                export_kind='palette',
+                export_kind='basecolor',
                 export_folder_key=project_base_name
             )
-            substance_painter.logging.info('已按图层文件夹导出 ID 图：' + export_name)
+            substance_painter.logging.info('已按文件夹导出贴图：' + export_name)
     except Exception as exc:
-        substance_painter.logging.warning('按图层文件夹导出 ID 图失败：' + str(exc))
+        substance_painter.logging.warning('按文件夹导出贴图失败：' + str(exc))
     finally:
-        restored_uids = set()
-        for node in all_nodes:
-            uid = get_node_uid(node)
-            if uid in restored_uids:
-                continue
-            node.set_visible(original_visibility.get(uid, True))
-            restored_uids.add(uid)
+        for _, node in top_nodes:
+            node.set_visible(original_visibility.get(get_node_uid(node), True))
         QtWidgets.QApplication.processEvents()
 
 
@@ -1265,8 +1229,8 @@ class RecolorToolWidget(QtWidgets.QWidget):
         export_lighting_button.clicked.connect(export_lighting_map)
         layout.addWidget(export_lighting_button)
 
-        export_palette_button = QtWidgets.QPushButton('\u5bfc\u51fa ID \u56fe')
-        export_palette_button.clicked.connect(export_palette_index_map)
+        export_palette_button = QtWidgets.QPushButton('按文件夹导出贴图')
+        export_palette_button.clicked.connect(export_by_layer_folders)
         layout.addWidget(export_palette_button)
 
         hint = QtWidgets.QLabel(
@@ -1276,9 +1240,9 @@ class RecolorToolWidget(QtWidgets.QWidget):
             '\u5f53\u5de5\u7a0b\u672a\u4fdd\u5b58\u65f6\uff0c\u5bfc\u51fa\u524d\u4f1a\u5148\u81ea\u52a8\u4fdd\u5b58 SPP\n'
             '\u70d8\u7119\u6309\u94ae\u4f1a\u542f\u7528 AO\uff0c\u5e76\u5728\u53ef\u7528\u65f6\u81ea\u52a8\u52fe\u9009\u5730\u9762\u76f8\u5173\u53c2\u6570\n'
             '\u6750\u8d28\u547d\u540d\uff1aALP_Mat_\u7c7b\u578b_\u540d\u79f0 -> ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
-            '\u5bfc\u51fa ID \u56fe\u548c\u5149\u7167\u4fe1\u606f\u65f6\uff0c\u4f1a\u989d\u5916\u590d\u5236\u4e00\u4efd\u5230\u5f53\u524d SPP \u6240\u5728\u6587\u4ef6\u5939\n'
+            '按文件夹导出和导出光照信息时，会额外复制一份到当前 SPP 所在文件夹\n'
             '\u9876\u5c42\u6587\u4ef6\u5939\u201c\u5149\u7167\u4fe1\u606f\u201d\u5bfc\u51fa\u4e3a ALP_Tx_\u7c7b\u578b_\u540d\u79f0\n'
-            '“ID通道”会按里面的图层文件夹逐个导出，命名为 SPP文件名_文件夹名_PaletteIndex，并走 PaletteIndex 模板'
+            '按文件夹导出会逐个显示顶层图层文件夹，命名为 SPP文件名_文件夹名'
         )
         hint.setWordWrap(True)
         hint.setStyleSheet('color: #BBBBBB;')
